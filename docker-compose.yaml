@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wager_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks:
+      - dev
+
+  pgadmin:
+    image: elestio/pgadmin:latest
+    container_name: pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=me@example.com
+      - PGADMIN_DEFAULT_PASSWORD=123456
+      - PGADMIN_LISTEN_PORT=5050
+    ports:
+      - "5050:5050"
+    networks:
+      - dev
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack_sqs
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs
+      - AWS_DEFAULT_REGION=us-east-1
+
+volumes:
+  pgdata:
+
+networks:
+  dev:
+    driver: bridge
