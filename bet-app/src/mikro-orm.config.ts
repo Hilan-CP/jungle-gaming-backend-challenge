@@ -1,5 +1,8 @@
 import { defineConfig, PostgreSqlDriver } from "@mikro-orm/postgresql";
 import { Migrator } from "@mikro-orm/migrations";
+import { WalletLedgerEntrySchema } from "./entity/database-schema/ledger-schema";
+import { WalletSchema } from "./entity/database-schema/wallet-schema";
+import { WagerTransactionSchema } from "./entity/database-schema/wager-transaction-schema";
 
 export default defineConfig({
     driver: PostgreSqlDriver,
@@ -8,8 +11,7 @@ export default defineConfig({
     user: process.env.DB_USER || "postgres",
     password: process.env.DB_PASSWORD || "postgres",
     dbName: process.env.DB_NAME || "wager_db",
-    entities: ["./dist/entity/*.js", "./dist/entity/**/*.js"],
-    entitiesTs: ["./src/entity/*.ts", "./src/entity/**/*.ts"],
+    entities: [WalletLedgerEntrySchema, WalletSchema, WagerTransactionSchema],
     extensions: [Migrator],
     migrations: {
         path: "./src/migrations",
