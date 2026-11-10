@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
-import { CurrencyMismatchError } from "../error/currency-mismatch.error.js";
-import { InvalidMoneyAmountError } from "../error/invalid-money-amount.error.js";
+import { CurrencyMismatchError } from "../error/currency-mismatch.error";
+import { InvalidMoneyAmountError } from "../error/invalid-money-amount.error";
 
 Decimal.set({ precision: 2, rounding: Decimal.ROUND_HALF_UP });
 
@@ -19,8 +19,11 @@ export class Money {
         let dec: Decimal;
         try {
             dec = new Decimal(props.amount);
+            if (dec.isNaN() || !dec.isFinite() || dec.decimalPlaces() > 2 || dec.isNegative()) {
+                throw new InvalidMoneyAmountError('Invalid decimal amount or precision for Money');
+            }
         } catch {
-            throw new InvalidMoneyAmountError(props.amount);
+            throw new InvalidMoneyAmountError("Could not convert to decimal");
         }
         return new Money(dec, props.currency);
     }

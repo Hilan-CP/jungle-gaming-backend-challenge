@@ -1,7 +1,7 @@
-import { InvalidTransactionStateError } from "../error/invalid-transaction-state.error.js";
-import { MissingReferenceError } from "../error/missing-reference.error.js";
-import { LedgerDirection } from "./ledger.js";
-import { Money, type MoneyProps } from "./money.js";
+import { InvalidTransactionStateError } from "../error/invalid-transaction-state.error";
+import { MissingReferenceError } from "../error/missing-reference.error";
+import { LedgerDirection } from "./ledger";
+import { Money, type MoneyProps } from "./money";
 
 export enum WagerTransactionKind {
     Opening = "OPENING",

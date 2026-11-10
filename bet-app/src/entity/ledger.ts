@@ -1,5 +1,5 @@
-import { UnbalancedLedgerEntryError } from "../error/unbalanced-ledger-entry.error.js";
-import { Money, type MoneyProps } from "./money.js";
+import { UnbalancedLedgerEntryError } from "../error/unbalanced-ledger-entry.error";
+import { Money, type MoneyProps } from "./money";
 
 export enum LedgerDirection {
     Debit = "DEBIT",

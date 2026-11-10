@@ -1,8 +1,8 @@
-import { CurrencyMismatchError } from "../error/currency-mismatch.error.js";
-import { InsufficientFundsError } from "../error/insufficient-funds.error.js";
-import { InvalidMoneyAmountError } from "../error/invalid-money-amount.error.js";
-import { LedgerDirection, WalletLedgerEntry, type LedgerEntryState } from "./ledger.js";
-import { Money, type MoneyProps } from "./money.js";
+import { CurrencyMismatchError } from "../error/currency-mismatch.error";
+import { InsufficientFundsError } from "../error/insufficient-funds.error";
+import { InvalidMoneyAmountError } from "../error/invalid-money-amount.error";
+import { LedgerDirection, WalletLedgerEntry, type LedgerEntryState } from "./ledger";
+import { Money, type MoneyProps } from "./money";
 
 interface WalletState {
     id: string;
