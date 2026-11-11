@@ -33,6 +33,11 @@ services:
     environment:
       - SERVICES=sqs
       - AWS_DEFAULT_REGION=us-east-1
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+    volumes:
+      - ./sqs-scripts.sh:/etc/localstack/init/ready.d/sqs-scripts.sh:ro
+    networks:
+      - dev
 
 volumes:
   pgdata:
