@@ -47,9 +47,9 @@ export class WalletService {
         });
 
         if (initialMoney.isPositive()) {
-            const openingTxId = randomUUID();
-            const openingTx = WagerTransaction.create({
-                id: openingTxId,
+            const openingTransactionId = randomUUID();
+            const openingTransaction = WagerTransaction.create({
+                id: openingTransactionId,
                 providerId: "system",
                 externalTransactionId: `opening-${wallet.id}`,
                 idempotencyKey: `system:opening-${wallet.id}`,
@@ -61,13 +61,13 @@ export class WalletService {
                 kind: WagerTransactionKind.Opening,
                 money: initialMoney
             });
-            openingTx.markProcessed(undefined, wallet.createdAt);
-            await this.wagerTransactionRepository.save(openingTx);
+            openingTransaction.markProcessed(undefined, wallet.createdAt);
+            await this.wagerTransactionRepository.save(openingTransaction);
 
             const openingEntry = WalletLedgerEntry.create({
                 id: randomUUID(),
                 walletId: wallet.id,
-                transactionId: openingTxId,
+                transactionId: openingTransactionId,
                 direction: LedgerDirection.Credit,
                 money: initialMoney,
                 balanceBefore: Money.zero(initialMoney.currency),

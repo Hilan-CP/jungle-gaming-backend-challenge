@@ -7,11 +7,11 @@ import { WagerTransactionSchema } from "../entity/database-schema/wager-transact
 export class WagerTransactionRepository {
     constructor(private readonly em: EntityManager) {}
 
-    async save(tx: WagerTransaction): Promise<void> {
-        const entity = tx as any;
-        entity.amount = tx.money.toJSON().amount;
-        entity.currency = tx.money.currency;
-        await this.em.persist(tx).flush();
+    async save(transaction: WagerTransaction): Promise<void> {
+        const entity = transaction as any;
+        entity.amount = transaction.money.toJSON().amount;
+        entity.currency = transaction.money.currency;
+        await this.em.persist(transaction).flush();
     }
 
     async findById(id: string): Promise<WagerTransaction | null> {

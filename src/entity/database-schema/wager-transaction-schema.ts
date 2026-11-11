@@ -39,7 +39,7 @@ export const WagerTransactionSchema = new EntitySchema<any>({
             type: TransactionMoneyCustomType,
             persist: false,
             getter: true,
-            serializer: (tx: WagerTransaction) => tx.money.toJSON()
+            serializer: (transaction: WagerTransaction) => transaction.money.toJSON()
         },
         amount: { fieldName: "amount", type: "string", persist: true },
         currency: { fieldName: "currency", type: "string", persist: true },

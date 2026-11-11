@@ -11,25 +11,25 @@ import { WalletLedgerRepository } from "../repository/wallet-ledger.repository";
 
 export { CreateWagerTransactionRequest, WagerTransactionResponse };
 
-function serializeTransaction(tx: WagerTransaction): WagerTransactionResponse {
+function serializeTransaction(transaction: WagerTransaction): WagerTransactionResponse {
     return {
-        id: tx.id,
-        providerId: tx.providerId,
-        externalTransactionId: tx.externalTransactionId,
-        idempotencyKey: tx.idempotencyKey,
-        payloadHash: tx.payloadHash,
-        walletId: tx.walletId,
-        playerId: tx.playerId,
-        roundId: tx.roundId,
-        gameId: tx.gameId,
-        kind: tx.kind,
-        money: tx.money.toJSON(),
-        referenceExternalTransactionId: tx.referenceExternalTransactionId ?? null,
-        referenceTransactionId: tx.referenceTransactionId ?? null,
-        status: tx.status,
-        failureCode: tx.failureCode ?? null,
-        createdAt: tx.createdAt,
-        processedAt: tx.processedAt ?? null
+        id: transaction.id,
+        providerId: transaction.providerId,
+        externalTransactionId: transaction.externalTransactionId,
+        idempotencyKey: transaction.idempotencyKey,
+        payloadHash: transaction.payloadHash,
+        walletId: transaction.walletId,
+        playerId: transaction.playerId,
+        roundId: transaction.roundId,
+        gameId: transaction.gameId,
+        kind: transaction.kind,
+        money: transaction.money.toJSON(),
+        referenceExternalTransactionId: transaction.referenceExternalTransactionId ?? null,
+        referenceTransactionId: transaction.referenceTransactionId ?? null,
+        status: transaction.status,
+        failureCode: transaction.failureCode ?? null,
+        createdAt: transaction.createdAt,
+        processedAt: transaction.processedAt ?? null
     };
 }
 
@@ -49,6 +49,23 @@ function computePayloadHash(dto: CreateWagerTransactionRequest): string {
     return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
+function parseTransactionKind(kind: string): WagerTransactionKind {
+    switch (kind) {
+        case "BET":
+            return WagerTransactionKind.Bet;
+        case "WIN":
+            return WagerTransactionKind.Win;
+        case "LOSS":
+            return WagerTransactionKind.Loss;
+        case "REFUND":
+            return WagerTransactionKind.Refund;
+        case "ROLLBACK":
+            return WagerTransactionKind.Rollback;
+        default:
+            throw new BadRequestException(`Unsupported transaction kind '${kind}'`);
+    }
+}
+
 @Injectable()
 export class WageringService {
     constructor(
@@ -61,27 +78,7 @@ export class WageringService {
         dto: CreateWagerTransactionRequest,
         idempotencyKeyHeader?: string
     ): Promise<WagerTransactionResponse> {
-        const kindUpper = dto.kind.toUpperCase();
-        let kind: WagerTransactionKind;
-        switch (kindUpper) {
-            case "BET":
-                kind = WagerTransactionKind.Bet;
-                break;
-            case "WIN":
-                kind = WagerTransactionKind.Win;
-                break;
-            case "LOSS":
-                kind = WagerTransactionKind.Loss;
-                break;
-            case "REFUND":
-                kind = WagerTransactionKind.Refund;
-                break;
-            case "ROLLBACK":
-                kind = WagerTransactionKind.Rollback;
-                break;
-            default:
-                throw new BadRequestException(`Unsupported transaction kind '${dto.kind}'`);
-        }
+        const kind = parseTransactionKind(dto.kind);
 
         const idempotencyKey = idempotencyKeyHeader || `${dto.providerId}:${dto.externalTransactionId}`;
         const payloadHash = computePayloadHash(dto);
@@ -141,22 +138,18 @@ export class WageringService {
             throw new BadRequestException(`Currency mismatch: expected ${wallet.currency}, got ${money.currency}`);
         }
 
-        let refTx: WagerTransaction | undefined;
+        let referenceTransaction: WagerTransaction | undefined;
         if (kind === WagerTransactionKind.Refund || kind === WagerTransactionKind.Rollback) {
-            if (
-                dto.referenceExternalTransactionId === undefined ||
-                dto.referenceExternalTransactionId === null ||
-                dto.referenceExternalTransactionId === ""
-            ) {
+            if (!dto.referenceExternalTransactionId || dto.referenceExternalTransactionId.trim() === "") {
                 throw new BadRequestException(
                     `Transaction of kind '${kind}' requires 'referenceExternalTransactionId'`
                 );
             }
-            const foundRef = await this.wagerTransactionRepository.findByProviderAndExternalId(
+            const foundReference = await this.wagerTransactionRepository.findByProviderAndExternalId(
                 dto.providerId,
                 dto.referenceExternalTransactionId
             );
-            if (!foundRef) {
+            if (!foundReference) {
                 throw new HttpException(
                     {
                         statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -166,10 +159,10 @@ export class WageringService {
                     HttpStatus.UNPROCESSABLE_ENTITY
                 );
             }
-            refTx = foundRef;
+            referenceTransaction = foundReference;
         }
 
-        const tx = WagerTransaction.create({
+        const transaction = WagerTransaction.create({
             id: randomUUID(),
             providerId: dto.providerId,
             externalTransactionId: dto.externalTransactionId,
@@ -185,65 +178,68 @@ export class WageringService {
         });
 
         const now = new Date();
-        if (tx.affectsBalance()) {
-            const direction = tx.ledgerDirectionFor(refTx);
+        if (transaction.affectsBalance()) {
+            const direction = transaction.ledgerDirectionFor(referenceTransaction);
             const entryId = randomUUID();
             let entry: WalletLedgerEntry;
 
             try {
                 if (direction === LedgerDirection.Debit) {
-                    entry = wallet.debit(money, tx.id, entryId, now);
+                    entry = wallet.debit(money, transaction.id, entryId, now);
                 } else {
-                    entry = wallet.credit(money, tx.id, entryId, now);
+                    entry = wallet.credit(money, transaction.id, entryId, now);
                 }
             } catch (err: any) {
                 if (err instanceof InsufficientFundsError) {
-                    tx.reject("INSUFFICIENT_FUNDS");
-                    await this.wagerTransactionRepository.save(tx);
+                    transaction.reject("INSUFFICIENT_FUNDS");
+                    await this.wagerTransactionRepository.save(transaction);
                     throw new HttpException(
                         {
                             statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
                             error: "INSUFFICIENT_FUNDS",
                             message: "Insufficient funds in wallet",
-                            transaction: serializeTransaction(tx)
+                            transaction: serializeTransaction(transaction)
                         },
                         HttpStatus.UNPROCESSABLE_ENTITY
                     );
                 }
-                tx.fail("INTERNAL_ERROR");
-                await this.wagerTransactionRepository.save(tx);
+                transaction.fail("INTERNAL_ERROR");
+                await this.wagerTransactionRepository.save(transaction);
                 throw err;
             }
 
-            tx.markProcessed(refTx?.id, now);
+            transaction.markProcessed(referenceTransaction?.id, now);
             await this.ledgerRepository.save(entry);
             await this.walletRepository.save(wallet);
         } else {
-            tx.markProcessed(refTx?.id, now);
+            transaction.markProcessed(referenceTransaction?.id, now);
         }
 
-        await this.wagerTransactionRepository.save(tx);
-        return serializeTransaction(tx);
+        await this.wagerTransactionRepository.save(transaction);
+        return serializeTransaction(transaction);
     }
 
     async getTransactionById(transactionId: string): Promise<WagerTransactionResponse> {
-        const tx = await this.wagerTransactionRepository.findById(transactionId);
-        if (!tx) {
+        const transaction = await this.wagerTransactionRepository.findById(transactionId);
+        if (!transaction) {
             throw new NotFoundException(`Transaction '${transactionId}' not found`);
         }
-        return serializeTransaction(tx);
+        return serializeTransaction(transaction);
     }
 
     async getTransactionByExternalId(
         providerId: string,
         externalTransactionId: string
     ): Promise<WagerTransactionResponse> {
-        const tx = await this.wagerTransactionRepository.findByProviderAndExternalId(providerId, externalTransactionId);
-        if (!tx) {
+        const transaction = await this.wagerTransactionRepository.findByProviderAndExternalId(
+            providerId,
+            externalTransactionId
+        );
+        if (!transaction) {
             throw new NotFoundException(
                 `Transaction '${externalTransactionId}' for provider '${providerId}' not found`
             );
         }
-        return serializeTransaction(tx);
+        return serializeTransaction(transaction);
     }
 }

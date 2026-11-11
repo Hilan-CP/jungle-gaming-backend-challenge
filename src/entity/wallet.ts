@@ -1,7 +1,7 @@
 import { CurrencyMismatchError } from "../error/currency-mismatch.error";
 import { InsufficientFundsError } from "../error/insufficient-funds.error";
 import { InvalidMoneyAmountError } from "../error/invalid-money-amount.error";
-import { LedgerDirection, WalletLedgerEntry, type LedgerEntryState } from "./ledger";
+import { LedgerDirection, WalletLedgerEntry } from "./ledger";
 import { Money, type MoneyProps } from "./money";
 
 interface WalletState {
