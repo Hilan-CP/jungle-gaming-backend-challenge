@@ -61,31 +61,6 @@ export class WageringService {
         dto: CreateWagerTransactionRequest,
         idempotencyKeyHeader?: string
     ): Promise<WagerTransactionResponse> {
-        if (!dto?.providerId || typeof dto.providerId !== "string") {
-            throw new BadRequestException("Field 'providerId' is required and must be a string");
-        }
-        if (!dto?.externalTransactionId || typeof dto.externalTransactionId !== "string") {
-            throw new BadRequestException("Field 'externalTransactionId' is required and must be a string");
-        }
-        if (!dto?.playerId || typeof dto.playerId !== "string") {
-            throw new BadRequestException("Field 'playerId' is required and must be a string");
-        }
-        if (!dto?.walletId || typeof dto.walletId !== "string") {
-            throw new BadRequestException("Field 'walletId' is required and must be a string");
-        }
-        if (!dto?.roundId || typeof dto.roundId !== "string") {
-            throw new BadRequestException("Field 'roundId' is required and must be a string");
-        }
-        if (!dto?.gameId || typeof dto.gameId !== "string") {
-            throw new BadRequestException("Field 'gameId' is required and must be a string");
-        }
-        if (!dto?.kind || typeof dto.kind !== "string") {
-            throw new BadRequestException("Field 'kind' is required");
-        }
-        if (!dto?.money || typeof dto.money !== "object" || !dto.money.amount || !dto.money.currency) {
-            throw new BadRequestException("Field 'money' with 'amount' and 'currency' is required");
-        }
-
         const kindUpper = dto.kind.toUpperCase();
         let kind: WagerTransactionKind;
         switch (kindUpper) {
@@ -168,7 +143,11 @@ export class WageringService {
 
         let refTx: WagerTransaction | undefined;
         if (kind === WagerTransactionKind.Refund || kind === WagerTransactionKind.Rollback) {
-            if (!dto.referenceExternalTransactionId) {
+            if (
+                dto.referenceExternalTransactionId === undefined ||
+                dto.referenceExternalTransactionId === null ||
+                dto.referenceExternalTransactionId === ""
+            ) {
                 throw new BadRequestException(
                     `Transaction of kind '${kind}' requires 'referenceExternalTransactionId'`
                 );

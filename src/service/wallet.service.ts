@@ -32,16 +32,6 @@ export class WalletService {
     ) {}
 
     async createWallet(request: CreateWalletRequest): Promise<WalletResponse> {
-        if (!request?.playerId || typeof request.playerId !== "string") {
-            throw new BadRequestException("Field 'playerId' is required and must be a string");
-        }
-        if (!request?.initialBalance || typeof request.initialBalance !== "object") {
-            throw new BadRequestException("Field 'initialBalance' is required and must be an object");
-        }
-        if (!request.initialBalance.amount || !request.initialBalance.currency) {
-            throw new BadRequestException("Fields 'initialBalance.amount' and 'initialBalance.currency' are required");
-        }
-
         let initialMoney: Money;
         try {
             initialMoney = Money.from(request.initialBalance);

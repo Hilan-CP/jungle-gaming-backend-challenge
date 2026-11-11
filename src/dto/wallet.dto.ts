@@ -1,8 +1,26 @@
+import { IsNotEmpty, IsObject, IsString, ValidateNested } from "class-validator";
 import { type MoneyProps } from "../entity/money";
+import { Type } from "class-transformer";
+
+export class MoneyDto {
+    @IsString()
+    @IsNotEmpty()
+    amount: string;
+
+    @IsString()
+    @IsNotEmpty()
+    currency: string;
+}
 
 export class CreateWalletRequest {
+    @IsString()
+    @IsNotEmpty()
     playerId: string;
-    initialBalance: MoneyProps;
+
+    @IsObject()
+    @ValidateNested()
+    @Type(() => MoneyDto)
+    initialBalance: MoneyDto;
 }
 
 export class WalletResponse {
