@@ -89,7 +89,7 @@ export class WagerTransaction {
         private _referenceTransactionId?: string,
         private _failureCode?: FailureCode,
         private _processedAt?: Date
-    ) { }
+    ) {}
 
     static create(props: CreateWagerTransactionProps): WagerTransaction {
         const transaction = new WagerTransaction(

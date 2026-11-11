@@ -23,7 +23,7 @@ export class Wallet {
         private _version: number,
         public readonly createdAt: Date,
         private _updatedAt: Date
-    ) { }
+    ) {}
 
     static open(props: { id: string; playerId: string; initialBalance: Money }): Wallet {
         const now = new Date();

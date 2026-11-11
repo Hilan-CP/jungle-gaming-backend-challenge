@@ -37,7 +37,7 @@ export class WalletLedgerEntry {
         public readonly balanceBefore: Money,
         public readonly balanceAfter: Money,
         public readonly createdAt: Date
-    ) { }
+    ) {}
 
     static create(props: CreateLedgerEntryProps): WalletLedgerEntry {
         const entry = new WalletLedgerEntry(

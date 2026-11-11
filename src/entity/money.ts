@@ -2,8 +2,6 @@ import Decimal from "decimal.js";
 import { CurrencyMismatchError } from "../error/currency-mismatch.error";
 import { InvalidMoneyAmountError } from "../error/invalid-money-amount.error";
 
-Decimal.set({ precision: 2, rounding: Decimal.ROUND_HALF_UP });
-
 export interface MoneyProps {
     amount: string;
     currency: string;
@@ -13,17 +11,12 @@ export class Money {
     private constructor(
         private readonly value: Decimal,
         public readonly currency: string
-    ) { }
+    ) {}
 
     static from(props: MoneyProps): Money {
-        let dec: Decimal;
-        try {
-            dec = new Decimal(props.amount);
-            if (dec.isNaN() || !dec.isFinite() || dec.decimalPlaces() > 2 || dec.isNegative()) {
-                throw new InvalidMoneyAmountError('Invalid decimal amount or precision for Money');
-            }
-        } catch {
-            throw new InvalidMoneyAmountError("Could not convert to decimal");
+        const dec = new Decimal(props.amount);
+        if (dec.isNaN() || !dec.isFinite() || dec.decimalPlaces() > 2 || dec.isNegative()) {
+            throw new InvalidMoneyAmountError("Invalid decimal amount or precision for Money");
         }
         return new Money(dec, props.currency);
     }
@@ -69,11 +62,11 @@ export class Money {
     }
 
     toJSON(): MoneyProps {
-        return { amount: this.value.toFixed(), currency: this.currency };
+        return { amount: this.value.toFixed(2), currency: this.currency };
     }
 
     toString(): string {
-        return `${this.value.toFixed()} ${this.currency}`;
+        return `${this.value.toFixed(2)} ${this.currency}`;
     }
 
     private assertSameCurrency(other: Money): void {
