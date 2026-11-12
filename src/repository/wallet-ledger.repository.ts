@@ -15,7 +15,7 @@ export class WalletLedgerRepository {
         entity.balanceBeforeCurrency = entry.balanceBefore.currency;
         entity.balanceAfterAmount = entry.balanceAfter.toJSON().amount;
         entity.balanceAfterCurrency = entry.balanceAfter.currency;
-        await this.em.persist(entry).flush();
+        this.em.persist(entry);
     }
 
     async findByWalletId(walletId: string): Promise<WalletLedgerEntry[]> {

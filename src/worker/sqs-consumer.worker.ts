@@ -107,11 +107,13 @@ export class SqsConsumerWorker implements OnApplicationBootstrap, OnApplicationS
                 receivedAt: new Date()
             });
             await this.inboxRepository.save(inboxMessage);
+            await this.orm.em.flush();
         }
 
         try {
             inboxMessage.markProcessed(new Date());
             await this.inboxRepository.save(inboxMessage);
+            await this.orm.em.flush();
             await this.deleteMessage(receiptHandle);
         } catch {
             this.logger.error(`Error processing message ${messageId} in consumer`);

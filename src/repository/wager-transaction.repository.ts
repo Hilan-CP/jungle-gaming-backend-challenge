@@ -11,7 +11,7 @@ export class WagerTransactionRepository {
         const entity = transaction as any;
         entity.amount = transaction.money.toJSON().amount;
         entity.currency = transaction.money.currency;
-        await this.em.persist(transaction).flush();
+        this.em.persist(transaction);
     }
 
     async findById(id: string): Promise<WagerTransaction | null> {

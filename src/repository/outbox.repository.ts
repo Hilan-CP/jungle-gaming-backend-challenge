@@ -8,7 +8,7 @@ export class OutboxRepository {
     constructor(private readonly em: EntityManager) {}
 
     async save(message: OutboxMessage): Promise<void> {
-        await this.em.persist(message).flush();
+        this.em.persist(message);
     }
 
     async findDueMessages(limit: number, now: Date): Promise<OutboxMessage[]> {

@@ -8,7 +8,7 @@ export class InboxRepository {
     constructor(private readonly em: EntityManager) {}
 
     async save(message: InboxMessage): Promise<void> {
-        await this.em.persist(message).flush();
+        this.em.persist(message);
     }
 
     async findByMessageIdAndConsumer(messageId: string, consumerName: string): Promise<InboxMessage | null> {

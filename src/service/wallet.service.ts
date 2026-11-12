@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { EntityManager } from "@mikro-orm/postgresql";
 import { randomUUID } from "node:crypto";
 import { Wallet } from "../entity/wallet";
 import { LedgerDirection, WalletLedgerEntry } from "../entity/ledger";
@@ -32,7 +33,8 @@ export class WalletService {
         private readonly walletRepository: WalletRepository,
         private readonly ledgerRepository: WalletLedgerRepository,
         private readonly wagerTransactionRepository: WagerTransactionRepository,
-        private readonly outboxRepository: OutboxRepository
+        private readonly outboxRepository: OutboxRepository,
+        private readonly em: EntityManager
     ) {}
 
     async createWallet(request: CreateWalletRequest): Promise<WalletResponse> {
@@ -43,67 +45,69 @@ export class WalletService {
             throw new BadRequestException(err?.message ?? "Invalid money amount or currency");
         }
 
-        const walletId = randomUUID();
-        const wallet = Wallet.open({
-            id: walletId,
-            playerId: request.playerId,
-            initialBalance: initialMoney
-        });
+        return this.em.transactional(async () => {
+            const walletId = randomUUID();
+            const wallet = Wallet.open({
+                id: walletId,
+                playerId: request.playerId,
+                initialBalance: initialMoney
+            });
 
-        await this.walletRepository.save(wallet);
+            await this.walletRepository.save(wallet);
 
-        const openingTransactionId = randomUUID();
-        const payloadHash = computePayloadHash({
-            providerId: "system",
-            externalTransactionId: `opening-${wallet.id}`,
-            playerId: wallet.playerId,
-            walletId: wallet.id,
-            roundId: "opening",
-            gameId: "opening",
-            kind: WagerTransactionKind.Opening,
-            money: initialMoney.toJSON()
-        });
-        const openingTransaction = WagerTransaction.create({
-            id: openingTransactionId,
-            providerId: "system",
-            externalTransactionId: `opening-${wallet.id}`,
-            idempotencyKey: `system:opening-${wallet.id}`,
-            payloadHash,
-            walletId: wallet.id,
-            playerId: wallet.playerId,
-            roundId: "opening",
-            gameId: "opening",
-            kind: WagerTransactionKind.Opening,
-            money: initialMoney
-        });
-        openingTransaction.markProcessed(undefined, wallet.createdAt);
-        await this.wagerTransactionRepository.save(openingTransaction);
-
-        const openingEntry = WalletLedgerEntry.create({
-            id: randomUUID(),
-            walletId: wallet.id,
-            transactionId: openingTransactionId,
-            direction: LedgerDirection.Credit,
-            money: initialMoney,
-            balanceBefore: Money.zero(initialMoney.currency),
-            balanceAfter: initialMoney
-        });
-        await this.ledgerRepository.save(openingEntry);
-
-        const walletCreatedOutbox = OutboxMessage.enqueue({
-            aggregateId: wallet.id,
-            eventType: "wallet.created",
-            payload: {
+            const openingTransactionId = randomUUID();
+            const payloadHash = computePayloadHash({
+                providerId: "system",
+                externalTransactionId: `opening-${wallet.id}`,
+                playerId: wallet.playerId,
+                walletId: wallet.id,
+                roundId: "opening",
+                gameId: "opening",
+                kind: WagerTransactionKind.Opening,
+                money: initialMoney.toJSON()
+            });
+            const openingTransaction = WagerTransaction.create({
+                id: openingTransactionId,
+                providerId: "system",
+                externalTransactionId: `opening-${wallet.id}`,
+                idempotencyKey: `system:opening-${wallet.id}`,
+                payloadHash,
                 walletId: wallet.id,
                 playerId: wallet.playerId,
-                currency: wallet.currency,
-                initialBalance: initialMoney.toJSON()
-            },
-            occurredAt: wallet.createdAt
-        });
-        await this.outboxRepository.save(walletCreatedOutbox);
+                roundId: "opening",
+                gameId: "opening",
+                kind: WagerTransactionKind.Opening,
+                money: initialMoney
+            });
+            openingTransaction.markProcessed(undefined, wallet.createdAt);
+            await this.wagerTransactionRepository.save(openingTransaction);
 
-        return serializeWallet(wallet);
+            const openingEntry = WalletLedgerEntry.create({
+                id: randomUUID(),
+                walletId: wallet.id,
+                transactionId: openingTransactionId,
+                direction: LedgerDirection.Credit,
+                money: initialMoney,
+                balanceBefore: Money.zero(initialMoney.currency),
+                balanceAfter: initialMoney
+            });
+            await this.ledgerRepository.save(openingEntry);
+
+            const walletCreatedOutbox = OutboxMessage.enqueue({
+                aggregateId: wallet.id,
+                eventType: "wallet.created",
+                payload: {
+                    walletId: wallet.id,
+                    playerId: wallet.playerId,
+                    currency: wallet.currency,
+                    initialBalance: initialMoney.toJSON()
+                },
+                occurredAt: wallet.createdAt
+            });
+            await this.outboxRepository.save(walletCreatedOutbox);
+
+            return serializeWallet(wallet);
+        });
     }
 
     async getWallet(walletId: string): Promise<WalletResponse> {

@@ -45,9 +45,11 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
                         await this.sqsPublisherService.publish(message);
                         message.markPublished(new Date());
                         await this.outboxRepository.save(message);
+                        await this.orm.em.flush();
                     } catch {
                         message.scheduleRetry(new Date());
                         await this.outboxRepository.save(message);
+                        await this.orm.em.flush();
                         this.logger.warn(`Failed to publish outbox message ${message.id}, scheduled retry`);
                     }
                 }

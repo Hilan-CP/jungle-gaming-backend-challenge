@@ -11,7 +11,7 @@ export class WalletRepository {
         const entity = wallet as any;
         entity.balanceAmount = wallet.balance.toJSON().amount;
         entity.balanceCurrency = wallet.currency;
-        await this.em.persist(wallet).flush();
+        this.em.persist(wallet);
     }
 
     async findById(id: string): Promise<Wallet | null> {
