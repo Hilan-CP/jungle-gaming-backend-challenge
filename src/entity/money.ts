@@ -7,6 +7,8 @@ export interface MoneyProps {
     currency: string;
 }
 
+const DECIMAL_AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/;
+
 export class Money {
     private constructor(
         private readonly value: Decimal,
@@ -14,11 +16,11 @@ export class Money {
     ) {}
 
     static from(props: MoneyProps): Money {
-        const dec = new Decimal(props.amount);
-        if (dec.isNaN() || !dec.isFinite() || dec.decimalPlaces() > 2 || dec.isNegative()) {
+        if (typeof props.amount !== "string" || !DECIMAL_AMOUNT_PATTERN.test(props.amount)) {
             throw new InvalidMoneyAmountError("Invalid decimal amount or precision for Money");
         }
-        return new Money(dec, props.currency);
+
+        return new Money(new Decimal(props.amount), props.currency);
     }
 
     static zero(currency: string): Money {

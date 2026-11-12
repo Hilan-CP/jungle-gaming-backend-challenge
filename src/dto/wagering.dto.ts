@@ -126,4 +126,14 @@ export class WagerTransactionResponse {
         example: "2026-11-11T14:38:00.774Z"
     })
     processedAt: Date | null;
+
+    @ApiProperty({ description: "Indica que a resposta veio de um replay idempotente", example: false })
+    idempotentReplay: boolean;
+
+    @ApiProperty({
+        description: "Saldo da carteira após o processamento (ou saldo original no replay idempotente)",
+        type: () => MoneyDto,
+        nullable: true
+    })
+    walletBalance: MoneyProps | null;
 }

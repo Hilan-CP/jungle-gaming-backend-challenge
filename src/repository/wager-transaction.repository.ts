@@ -38,4 +38,9 @@ export class WagerTransactionRepository {
         if (!state) return null;
         return WagerTransaction.rehydrate(state);
     }
+
+    async findByReferenceTransactionId(referenceTransactionId: string): Promise<WagerTransaction[]> {
+        const states = await this.em.find(WagerTransactionSchema, { referenceTransactionId });
+        return states.map((state) => WagerTransaction.rehydrate(state));
+    }
 }

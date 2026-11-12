@@ -3,7 +3,13 @@ import { EntityManager } from "@mikro-orm/postgresql";
 import { randomUUID } from "node:crypto";
 import { LedgerDirection, LedgerEntryState, WalletLedgerEntry } from "../entity/ledger";
 import { Money } from "../entity/money";
-import { WagerTransaction, WagerTransactionKind, WagerTransactionState } from "../entity/wager-transaction";
+import {
+    FailureCode,
+    WagerTransaction,
+    WagerTransactionKind,
+    WagerTransactionState,
+    WagerTransactionStatus
+} from "../entity/wager-transaction";
 import { CreateWagerTransactionRequest, WagerTransactionResponse } from "../dto/wagering.dto";
 import { InsufficientFundsError } from "../error/insufficient-funds.error";
 import { WalletRepository } from "../repository/wallet.repository";
@@ -16,7 +22,15 @@ import { computePayloadHash } from "../util/payload-hash.util";
 
 export { CreateWagerTransactionRequest, WagerTransactionResponse };
 
-function serializeTransaction(transaction: WagerTransaction): WagerTransactionResponse {
+interface SerializeTransactionOptions {
+    idempotentReplay?: boolean;
+    walletBalance?: Money;
+}
+
+function serializeTransaction(
+    transaction: WagerTransaction,
+    options: SerializeTransactionOptions = {}
+): WagerTransactionResponse {
     return {
         id: transaction.id,
         providerId: transaction.providerId,
@@ -34,7 +48,9 @@ function serializeTransaction(transaction: WagerTransaction): WagerTransactionRe
         status: transaction.status,
         failureCode: transaction.failureCode ?? null,
         createdAt: transaction.createdAt,
-        processedAt: transaction.processedAt ?? null
+        processedAt: transaction.processedAt ?? null,
+        idempotentReplay: options.idempotentReplay ?? false,
+        walletBalance: options.walletBalance?.toJSON() ?? null
     };
 }
 
@@ -52,6 +68,21 @@ function parseTransactionKind(kind: string): WagerTransactionKind {
             return WagerTransactionKind.Rollback;
         default:
             throw new BadRequestException(`Unsupported transaction kind '${kind}'`);
+    }
+}
+
+function rejectionMessage(failureCode: FailureCode | undefined): string {
+    switch (failureCode) {
+        case "INSUFFICIENT_FUNDS":
+            return "Insufficient funds in wallet";
+        case "REVERSAL_INSUFFICIENT_FUNDS":
+            return "Reversal would result in a negative wallet balance";
+        case "INVALID_REVERSAL_AMOUNT":
+            return "Reversal amount must match the referenced transaction";
+        case "INVALID_REFERENCE":
+            return "Referenced transaction is not eligible for reversal";
+        default:
+            return "Transaction rejected";
     }
 }
 
@@ -81,16 +112,11 @@ export class WageringService {
             // Idempotency check by header key
             const existingByKey = await this.wagerTransactionRepository.findByIdempotencyKey(idempotencyKey);
             if (existingByKey) {
-                if (existingByKey.matchesPayload(payloadHash)) {
-                    return serializeTransaction(existingByKey);
-                }
-                throw new HttpException(
-                    {
-                        statusCode: HttpStatus.CONFLICT,
-                        error: "PAYLOAD_MISMATCH",
-                        message: "A transaction with this Idempotency-Key already exists with a different payload"
-                    },
-                    HttpStatus.CONFLICT
+                return this.resolveIdempotentReplay(
+                    existingByKey,
+                    payloadHash,
+                    "PAYLOAD_MISMATCH",
+                    "A transaction with this Idempotency-Key already exists with a different payload"
                 );
             }
 
@@ -100,16 +126,11 @@ export class WageringService {
                 dto.externalTransactionId
             );
             if (existingByExt) {
-                if (existingByExt.matchesPayload(payloadHash)) {
-                    return serializeTransaction(existingByExt);
-                }
-                throw new HttpException(
-                    {
-                        statusCode: HttpStatus.CONFLICT,
-                        error: "DUPLICATE_TRANSACTION",
-                        message: "Transaction already exists for provider with a different payload"
-                    },
-                    HttpStatus.CONFLICT
+                return this.resolveIdempotentReplay(
+                    existingByExt,
+                    payloadHash,
+                    "DUPLICATE_TRANSACTION",
+                    "Transaction already exists for provider with a different payload"
                 );
             }
 
@@ -135,28 +156,13 @@ export class WageringService {
                 throw new BadRequestException(`Currency mismatch: expected ${wallet.currency}, got ${money.currency}`);
             }
 
-            let referenceTransaction: WagerTransaction | undefined;
-            if (kind === WagerTransactionKind.Refund || kind === WagerTransactionKind.Rollback) {
-                if (!dto.referenceExternalTransactionId || dto.referenceExternalTransactionId.trim() === "") {
-                    throw new BadRequestException(
-                        `Transaction of kind '${kind}' requires 'referenceExternalTransactionId'`
-                    );
-                }
-                const foundReference = await this.wagerTransactionRepository.findByProviderAndExternalId(
-                    dto.providerId,
-                    dto.referenceExternalTransactionId
+            if (
+                (kind === WagerTransactionKind.Refund || kind === WagerTransactionKind.Rollback) &&
+                (!dto.referenceExternalTransactionId || dto.referenceExternalTransactionId.trim() === "")
+            ) {
+                throw new BadRequestException(
+                    `Transaction of kind '${kind}' requires 'referenceExternalTransactionId'`
                 );
-                if (!foundReference) {
-                    throw new HttpException(
-                        {
-                            statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-                            error: "INVALID_REFERENCE",
-                            message: `Referenced external transaction '${dto.referenceExternalTransactionId}' not found for provider '${dto.providerId}'`
-                        },
-                        HttpStatus.UNPROCESSABLE_ENTITY
-                    );
-                }
-                referenceTransaction = foundReference;
             }
 
             const transaction = WagerTransaction.create({
@@ -175,6 +181,86 @@ export class WageringService {
             });
 
             const now = new Date();
+
+            const rejectTransaction = async (failureCode: FailureCode): Promise<WagerTransactionResponse> => {
+                transaction.reject(failureCode);
+                await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
+                const rejectedOutbox = OutboxMessage.enqueue({
+                    aggregateId: transaction.walletId,
+                    eventType: "wager.rejected",
+                    payload: serializeTransaction(transaction, { walletBalance: wallet.balance }),
+                    occurredAt: now
+                });
+                await this.outboxRepository.save(new OutboxMessageState(rejectedOutbox));
+                rejectedTransaction = serializeTransaction(transaction, { walletBalance: wallet.balance });
+                return rejectedTransaction;
+            };
+
+            const markPendingReference = async (): Promise<WagerTransactionResponse> => {
+                transaction.markPendingReference();
+                await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
+                const pendingOutbox = OutboxMessage.enqueue({
+                    aggregateId: transaction.walletId,
+                    eventType: "wager.pending_reference",
+                    payload: serializeTransaction(transaction, { walletBalance: wallet.balance }),
+                    occurredAt: now
+                });
+                await this.outboxRepository.save(new OutboxMessageState(pendingOutbox));
+                return serializeTransaction(transaction, { walletBalance: wallet.balance });
+            };
+
+            let referenceTransaction: WagerTransaction | undefined;
+            if (transaction.requiresReference()) {
+                const referenceExternalTransactionId = dto.referenceExternalTransactionId;
+                if (!referenceExternalTransactionId || referenceExternalTransactionId.trim() === "") {
+                    throw new BadRequestException(
+                        `Transaction of kind '${kind}' requires 'referenceExternalTransactionId'`
+                    );
+                }
+
+                const foundReference = await this.wagerTransactionRepository.findByProviderAndExternalId(
+                    dto.providerId,
+                    referenceExternalTransactionId
+                );
+
+                if (!foundReference) {
+                    return markPendingReference();
+                }
+
+                if (
+                    foundReference.status === WagerTransactionStatus.Pending ||
+                    foundReference.status === WagerTransactionStatus.PendingReference
+                ) {
+                    return markPendingReference();
+                }
+
+                if (foundReference.status !== WagerTransactionStatus.Processed) {
+                    return rejectTransaction("INVALID_REFERENCE");
+                }
+
+                if (!WagerTransaction.canReverse(kind, foundReference.kind)) {
+                    return rejectTransaction("INVALID_REFERENCE");
+                }
+
+                const existingReversals = await this.wagerTransactionRepository.findByReferenceTransactionId(
+                    foundReference.id
+                );
+                const alreadyReversed = existingReversals.some(
+                    (reversal) =>
+                        reversal.status === WagerTransactionStatus.Processed ||
+                        reversal.status === WagerTransactionStatus.PendingReference
+                );
+                if (alreadyReversed) {
+                    return rejectTransaction("INVALID_REFERENCE");
+                }
+
+                if (!money.equals(foundReference.money)) {
+                    return rejectTransaction("INVALID_REVERSAL_AMOUNT");
+                }
+
+                referenceTransaction = foundReference;
+            }
+
             if (transaction.affectsBalance()) {
                 const direction = transaction.ledgerDirectionFor(referenceTransaction);
                 const entryId = randomUUID();
@@ -188,22 +274,15 @@ export class WageringService {
                     }
                 } catch (err: any) {
                     if (err instanceof InsufficientFundsError) {
-                        transaction.reject("INSUFFICIENT_FUNDS");
-                        await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
-                        const rejectedOutbox = OutboxMessage.enqueue({
-                            aggregateId: transaction.walletId,
-                            eventType: "wager.rejected",
-                            payload: serializeTransaction(transaction),
-                            occurredAt: now
-                        });
-                        await this.outboxRepository.save(new OutboxMessageState(rejectedOutbox));
-                        rejectedTransaction = serializeTransaction(transaction);
-                        return rejectedTransaction;
+                        const failureCode: FailureCode = transaction.requiresReference()
+                            ? "REVERSAL_INSUFFICIENT_FUNDS"
+                            : "INSUFFICIENT_FUNDS";
+                        return rejectTransaction(failureCode);
                     }
                     transaction.fail("INTERNAL_ERROR");
                     await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
                     processingError = { error: err };
-                    return serializeTransaction(transaction);
+                    return serializeTransaction(transaction, { walletBalance: wallet.balance });
                 }
 
                 transaction.markProcessed(referenceTransaction?.id, now);
@@ -217,19 +296,20 @@ export class WageringService {
             const processedOutbox = OutboxMessage.enqueue({
                 aggregateId: transaction.walletId,
                 eventType: "wager.processed",
-                payload: serializeTransaction(transaction),
+                payload: serializeTransaction(transaction, { walletBalance: wallet.balance }),
                 occurredAt: now
             });
             await this.outboxRepository.save(new OutboxMessageState(processedOutbox));
-            return serializeTransaction(transaction);
+            return serializeTransaction(transaction, { walletBalance: wallet.balance });
         });
 
         if (rejectedTransaction) {
+            const failureCode = rejectedTransaction.failureCode ?? undefined;
             throw new HttpException(
                 {
                     statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-                    error: "INSUFFICIENT_FUNDS",
-                    message: "Insufficient funds in wallet",
+                    error: failureCode,
+                    message: rejectionMessage(failureCode),
                     transaction: rejectedTransaction
                 },
                 HttpStatus.UNPROCESSABLE_ENTITY
@@ -265,5 +345,29 @@ export class WageringService {
             );
         }
         return serializeTransaction(transaction);
+    }
+
+    private async resolveIdempotentReplay(
+        existing: WagerTransaction,
+        payloadHash: string,
+        conflictCode: "PAYLOAD_MISMATCH" | "DUPLICATE_TRANSACTION",
+        conflictMessage: string
+    ): Promise<WagerTransactionResponse> {
+        if (!existing.matchesPayload(payloadHash)) {
+            throw new HttpException(
+                {
+                    statusCode: HttpStatus.CONFLICT,
+                    error: conflictCode,
+                    message: conflictMessage
+                },
+                HttpStatus.CONFLICT
+            );
+        }
+
+        const wallet = await this.walletRepository.findById(existing.walletId);
+        return serializeTransaction(existing, {
+            idempotentReplay: true,
+            walletBalance: wallet?.balance
+        });
     }
 }

@@ -22,6 +22,8 @@ export enum WagerTransactionStatus {
 
 export type FailureCode =
     | "INSUFFICIENT_FUNDS"
+    | "REVERSAL_INSUFFICIENT_FUNDS"
+    | "INVALID_REVERSAL_AMOUNT"
     | "DUPLICATE_TRANSACTION"
     | "INVALID_REFERENCE"
     | "PAYLOAD_MISMATCH"
@@ -198,6 +200,20 @@ export class WagerTransaction {
 
     isTerminal(): boolean {
         return TERMINAL_STATUSES.has(this._status);
+    }
+
+    static canReverse(kind: WagerTransactionKind, referenceKind: WagerTransactionKind): boolean {
+        if (kind === WagerTransactionKind.Refund) {
+            return referenceKind === WagerTransactionKind.Bet;
+        }
+        if (kind === WagerTransactionKind.Rollback) {
+            return (
+                referenceKind === WagerTransactionKind.Bet ||
+                referenceKind === WagerTransactionKind.Win ||
+                referenceKind === WagerTransactionKind.Refund
+            );
+        }
+        return false;
     }
 
     affectsBalance(): boolean {

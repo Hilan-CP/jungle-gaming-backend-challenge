@@ -37,7 +37,7 @@ export class Wallet {
 
     static open(props: { id: string; playerId: string; initialBalance: Money }): Wallet {
         const now = new Date();
-        return new Wallet(props.id, props.playerId, props.initialBalance.currency, props.initialBalance, 0, now, now);
+        return new Wallet(props.id, props.playerId, props.initialBalance.currency, props.initialBalance, 1, now, now);
     }
 
     static rehydrate(state: WalletState): Wallet {
