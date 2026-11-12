@@ -1,7 +1,7 @@
 import { InvalidTransactionStateError } from "../error/invalid-transaction-state.error";
 import { MissingReferenceError } from "../error/missing-reference.error";
 import { LedgerDirection } from "./ledger";
-import { Money, type MoneyProps } from "./money";
+import { Money } from "./money";
 
 export enum WagerTransactionKind {
     Opening = "OPENING",
@@ -26,8 +26,7 @@ export type FailureCode =
     | "INVALID_REFERENCE"
     | "PAYLOAD_MISMATCH"
     | "PROVIDER_ERROR"
-    | "INTERNAL_ERROR"
-    | string;
+    | "INTERNAL_ERROR";
 
 interface CreateWagerTransactionProps {
     id: string;
@@ -44,24 +43,46 @@ interface CreateWagerTransactionProps {
     referenceExternalTransactionId?: string;
 }
 
-interface WagerTransactionState {
-    id: string;
-    providerId: string;
-    externalTransactionId: string;
-    idempotencyKey: string;
-    payloadHash: string;
-    walletId: string;
-    playerId: string;
-    roundId: string;
-    gameId: string;
-    kind: WagerTransactionKind;
-    money: MoneyProps;
-    referenceExternalTransactionId?: string;
-    createdAt: Date;
-    status: WagerTransactionStatus;
-    referenceTransactionId?: string;
-    failureCode?: FailureCode;
-    processedAt?: Date;
+export class WagerTransactionState {
+    public id: string;
+    public providerId: string;
+    public externalTransactionId: string;
+    public idempotencyKey: string;
+    public payloadHash: string;
+    public walletId: string;
+    public playerId: string;
+    public roundId: string;
+    public gameId: string;
+    public kind: WagerTransactionKind;
+    public amount: string;
+    public currency: string;
+    public createdAt: Date;
+    public status: WagerTransactionStatus;
+    public referenceExternalTransactionId?: string;
+    public referenceTransactionId?: string;
+    public failureCode?: FailureCode;
+    public processedAt?: Date;
+
+    public constructor(wagerTransaction: WagerTransaction) {
+        this.id = wagerTransaction.id;
+        this.providerId = wagerTransaction.providerId;
+        this.externalTransactionId = wagerTransaction.externalTransactionId;
+        this.idempotencyKey = wagerTransaction.idempotencyKey;
+        this.payloadHash = wagerTransaction.payloadHash;
+        this.walletId = wagerTransaction.walletId;
+        this.playerId = wagerTransaction.playerId;
+        this.roundId = wagerTransaction.roundId;
+        this.gameId = wagerTransaction.gameId;
+        this.kind = wagerTransaction.kind;
+        this.amount = wagerTransaction.money.toJSON().amount;
+        this.currency = wagerTransaction.money.currency;
+        this.createdAt = wagerTransaction.createdAt;
+        this.status = wagerTransaction.status;
+        this.referenceExternalTransactionId = wagerTransaction.referenceExternalTransactionId;
+        this.referenceTransactionId = wagerTransaction.referenceTransactionId;
+        this.failureCode = wagerTransaction.failureCode;
+        this.processedAt = wagerTransaction.processedAt;
+    }
 }
 
 const TERMINAL_STATUSES = new Set<WagerTransactionStatus>([
@@ -128,7 +149,7 @@ export class WagerTransaction {
             state.roundId,
             state.gameId,
             state.kind,
-            Money.from(state.money),
+            Money.from({ amount: state.amount, currency: state.currency }),
             state.referenceExternalTransactionId,
             state.createdAt,
             state.status,

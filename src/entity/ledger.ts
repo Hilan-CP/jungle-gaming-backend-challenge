@@ -1,5 +1,5 @@
 import { UnbalancedLedgerEntryError } from "../error/unbalanced-ledger-entry.error";
-import { Money, type MoneyProps } from "./money";
+import { Money } from "./money";
 
 export enum LedgerDirection {
     Debit = "DEBIT",
@@ -16,15 +16,28 @@ export interface CreateLedgerEntryProps {
     balanceAfter: Money;
 }
 
-export interface LedgerEntryState {
-    id: string;
-    walletId: string;
-    transactionId: string;
-    direction: LedgerDirection;
-    money: MoneyProps;
-    balanceBefore: MoneyProps;
-    balanceAfter: MoneyProps;
-    createdAt: Date;
+export class LedgerEntryState {
+    public id: string;
+    public walletId: string;
+    public transactionId: string;
+    public direction: LedgerDirection;
+    public amount: string;
+    public currency: string;
+    public balanceBefore: string;
+    public balanceAfter: string;
+    public createdAt: Date;
+
+    public constructor(ledgerEntry: WalletLedgerEntry) {
+        this.id = ledgerEntry.id;
+        this.walletId = ledgerEntry.walletId;
+        this.transactionId = ledgerEntry.transactionId;
+        this.direction = ledgerEntry.direction;
+        this.amount = ledgerEntry.money.toJSON().amount;
+        this.currency = ledgerEntry.money.currency;
+        this.balanceBefore = ledgerEntry.balanceBefore.toJSON().amount;
+        this.balanceAfter = ledgerEntry.balanceAfter.toJSON().amount;
+        this.createdAt = ledgerEntry.createdAt;
+    }
 }
 
 export class WalletLedgerEntry {
@@ -62,9 +75,9 @@ export class WalletLedgerEntry {
             state.walletId,
             state.transactionId,
             state.direction,
-            Money.from(state.money),
-            Money.from(state.balanceBefore),
-            Money.from(state.balanceAfter),
+            Money.from({ amount: state.amount, currency: state.currency }),
+            Money.from({ amount: state.balanceBefore, currency: state.currency }),
+            Money.from({ amount: state.balanceAfter, currency: state.currency }),
             state.createdAt
         );
     }

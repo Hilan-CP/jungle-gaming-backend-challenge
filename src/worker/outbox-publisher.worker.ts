@@ -1,6 +1,7 @@
 import { Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from "@nestjs/common";
 import { MikroORM, RequestContext } from "@mikro-orm/postgresql";
 import { OutboxRepository } from "../repository/outbox.repository";
+import { OutboxMessageState } from "../entity/outbox";
 import { SqsPublisherService } from "../infra/sqs/sqs-publisher.service";
 
 @Injectable()
@@ -44,11 +45,11 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
                     try {
                         await this.sqsPublisherService.publish(message);
                         message.markPublished(new Date());
-                        await this.outboxRepository.save(message);
+                        await this.outboxRepository.update(new OutboxMessageState(message));
                         await this.orm.em.flush();
                     } catch {
                         message.scheduleRetry(new Date());
-                        await this.outboxRepository.save(message);
+                        await this.outboxRepository.update(new OutboxMessageState(message));
                         await this.orm.em.flush();
                         this.logger.warn(`Failed to publish outbox message ${message.id}, scheduled retry`);
                     }

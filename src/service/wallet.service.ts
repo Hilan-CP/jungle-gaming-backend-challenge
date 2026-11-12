@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { EntityManager } from "@mikro-orm/postgresql";
 import { randomUUID } from "node:crypto";
-import { Wallet } from "../entity/wallet";
-import { LedgerDirection, WalletLedgerEntry } from "../entity/ledger";
+import { Wallet, WalletState } from "../entity/wallet";
+import { LedgerDirection, LedgerEntryState, WalletLedgerEntry } from "../entity/ledger";
 import { Money } from "../entity/money";
-import { WagerTransaction, WagerTransactionKind } from "../entity/wager-transaction";
-import { OutboxMessage } from "../entity/outbox";
+import { WagerTransaction, WagerTransactionKind, WagerTransactionState } from "../entity/wager-transaction";
+import { OutboxMessage, OutboxMessageState } from "../entity/outbox";
 import { CreateWalletRequest, ReconciliationResponse, WalletResponse } from "../dto/wallet.dto";
 import { WalletRepository } from "../repository/wallet.repository";
 import { WalletLedgerRepository } from "../repository/wallet-ledger.repository";
@@ -53,7 +53,7 @@ export class WalletService {
                 initialBalance: initialMoney
             });
 
-            await this.walletRepository.save(wallet);
+            await this.walletRepository.save(new WalletState(wallet));
 
             const openingTransactionId = randomUUID();
             const payloadHash = computePayloadHash({
@@ -80,7 +80,7 @@ export class WalletService {
                 money: initialMoney
             });
             openingTransaction.markProcessed(undefined, wallet.createdAt);
-            await this.wagerTransactionRepository.save(openingTransaction);
+            await this.wagerTransactionRepository.save(new WagerTransactionState(openingTransaction));
 
             const openingEntry = WalletLedgerEntry.create({
                 id: randomUUID(),
@@ -91,7 +91,7 @@ export class WalletService {
                 balanceBefore: Money.zero(initialMoney.currency),
                 balanceAfter: initialMoney
             });
-            await this.ledgerRepository.save(openingEntry);
+            await this.ledgerRepository.save(new LedgerEntryState(openingEntry));
 
             const walletCreatedOutbox = OutboxMessage.enqueue({
                 aggregateId: wallet.id,
@@ -104,7 +104,7 @@ export class WalletService {
                 },
                 occurredAt: wallet.createdAt
             });
-            await this.outboxRepository.save(walletCreatedOutbox);
+            await this.outboxRepository.save(new OutboxMessageState(walletCreatedOutbox));
 
             return serializeWallet(wallet);
         });

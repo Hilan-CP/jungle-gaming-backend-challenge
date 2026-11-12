@@ -1,8 +1,8 @@
 import { EntitySchema } from "@mikro-orm/core";
-import { OutboxMessage } from "../outbox";
+import { OutboxMessageState } from "../outbox";
 
-export const OutboxMessageSchema = new EntitySchema<any>({
-    class: OutboxMessage as any,
+export const OutboxMessageSchema = new EntitySchema<OutboxMessageState>({
+    class: OutboxMessageState,
     tableName: "outbox_messages",
     properties: {
         id: { type: "string", primary: true, defaultRaw: "gen_random_uuid()" },
@@ -10,15 +10,15 @@ export const OutboxMessageSchema = new EntitySchema<any>({
         eventType: { fieldName: "event_type", type: "string" },
         payload: { type: "json" },
         occurredAt: { fieldName: "occurred_at", type: "datetime", defaultRaw: "now()" },
-        _attempts: { fieldName: "attempts", type: "number", default: 0 },
-        _nextAttemptAt: { fieldName: "next_attempt_at", type: "datetime", nullable: true },
-        _publishedAt: { fieldName: "published_at", type: "datetime", nullable: true }
+        attempts: { fieldName: "attempts", type: "number", default: 0 },
+        nextAttemptAt: { fieldName: "next_attempt_at", type: "datetime", nullable: true },
+        publishedAt: { fieldName: "published_at", type: "datetime", nullable: true }
     },
     indexes: [
         { properties: ["aggregateId"] },
         {
             name: "outbox_messages_published_at_next_attempt_at_index",
-            properties: ["_publishedAt", "_nextAttemptAt"]
+            properties: ["publishedAt", "nextAttemptAt"]
         },
         { properties: ["occurredAt"] }
     ]

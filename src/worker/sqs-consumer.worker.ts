@@ -3,7 +3,7 @@ import { Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShut
 import { MikroORM, RequestContext } from "@mikro-orm/postgresql";
 import { SqsClientProvider } from "../infra/sqs/sqs.client";
 import { InboxRepository } from "../repository/inbox.repository";
-import { InboxMessage } from "../entity/inbox";
+import { InboxMessage, InboxMessageState } from "../entity/inbox";
 import { computeRawPayloadHash } from "../util/payload-hash.util";
 import { getWagerQueueUrl } from "../config/aws.config";
 
@@ -106,13 +106,13 @@ export class SqsConsumerWorker implements OnApplicationBootstrap, OnApplicationS
                 payloadHash,
                 receivedAt: new Date()
             });
-            await this.inboxRepository.save(inboxMessage);
+            await this.inboxRepository.save(new InboxMessageState(inboxMessage));
             await this.orm.em.flush();
         }
 
         try {
             inboxMessage.markProcessed(new Date());
-            await this.inboxRepository.save(inboxMessage);
+            await this.inboxRepository.update(new InboxMessageState(inboxMessage));
             await this.orm.em.flush();
             await this.deleteMessage(receiptHandle);
         } catch {

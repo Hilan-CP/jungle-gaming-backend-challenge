@@ -1,16 +1,17 @@
 import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from "@nestjs/common";
 import { EntityManager } from "@mikro-orm/postgresql";
 import { randomUUID } from "node:crypto";
-import { LedgerDirection, WalletLedgerEntry } from "../entity/ledger";
+import { LedgerDirection, LedgerEntryState, WalletLedgerEntry } from "../entity/ledger";
 import { Money } from "../entity/money";
-import { WagerTransaction, WagerTransactionKind } from "../entity/wager-transaction";
+import { WagerTransaction, WagerTransactionKind, WagerTransactionState } from "../entity/wager-transaction";
 import { CreateWagerTransactionRequest, WagerTransactionResponse } from "../dto/wagering.dto";
 import { InsufficientFundsError } from "../error/insufficient-funds.error";
 import { WalletRepository } from "../repository/wallet.repository";
 import { WagerTransactionRepository } from "../repository/wager-transaction.repository";
 import { WalletLedgerRepository } from "../repository/wallet-ledger.repository";
 import { OutboxRepository } from "../repository/outbox.repository";
-import { OutboxMessage } from "../entity/outbox";
+import { OutboxMessage, OutboxMessageState } from "../entity/outbox";
+import { WalletState } from "../entity/wallet";
 import { computePayloadHash } from "../util/payload-hash.util";
 
 export { CreateWagerTransactionRequest, WagerTransactionResponse };
@@ -188,38 +189,38 @@ export class WageringService {
                 } catch (err: any) {
                     if (err instanceof InsufficientFundsError) {
                         transaction.reject("INSUFFICIENT_FUNDS");
-                        await this.wagerTransactionRepository.save(transaction);
+                        await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
                         const rejectedOutbox = OutboxMessage.enqueue({
                             aggregateId: transaction.walletId,
                             eventType: "wager.rejected",
                             payload: serializeTransaction(transaction),
                             occurredAt: now
                         });
-                        await this.outboxRepository.save(rejectedOutbox);
+                        await this.outboxRepository.save(new OutboxMessageState(rejectedOutbox));
                         rejectedTransaction = serializeTransaction(transaction);
                         return rejectedTransaction;
                     }
                     transaction.fail("INTERNAL_ERROR");
-                    await this.wagerTransactionRepository.save(transaction);
+                    await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
                     processingError = { error: err };
                     return serializeTransaction(transaction);
                 }
 
                 transaction.markProcessed(referenceTransaction?.id, now);
-                await this.ledgerRepository.save(entry);
-                await this.walletRepository.save(wallet);
+                await this.ledgerRepository.save(new LedgerEntryState(entry));
+                await this.walletRepository.update(new WalletState(wallet));
             } else {
                 transaction.markProcessed(referenceTransaction?.id, now);
             }
 
-            await this.wagerTransactionRepository.save(transaction);
+            await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
             const processedOutbox = OutboxMessage.enqueue({
                 aggregateId: transaction.walletId,
                 eventType: "wager.processed",
                 payload: serializeTransaction(transaction),
                 occurredAt: now
             });
-            await this.outboxRepository.save(processedOutbox);
+            await this.outboxRepository.save(new OutboxMessageState(processedOutbox));
             return serializeTransaction(transaction);
         });
 

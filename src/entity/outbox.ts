@@ -8,15 +8,26 @@ export interface IntegrationEvent<T = unknown> {
     readonly occurredAt?: Date;
 }
 
-export interface OutboxMessageState {
-    readonly id: string;
-    readonly aggregateId: string;
-    readonly eventType: string;
-    readonly payload: Readonly<Record<string, unknown>>;
-    readonly occurredAt: Date;
-    readonly attempts: number;
-    readonly nextAttemptAt?: Date;
-    readonly publishedAt?: Date;
+export class OutboxMessageState {
+    public id: string;
+    public aggregateId: string;
+    public eventType: string;
+    public payload: Readonly<Record<string, unknown>>;
+    public occurredAt: Date;
+    public attempts: number;
+    public nextAttemptAt?: Date;
+    public publishedAt?: Date;
+
+    public constructor(message: OutboxMessage) {
+        this.id = message.id;
+        this.aggregateId = message.aggregateId;
+        this.eventType = message.eventType;
+        this.payload = message.payload;
+        this.occurredAt = message.occurredAt;
+        this.attempts = message.attempts;
+        this.nextAttemptAt = message.nextAttemptAt;
+        this.publishedAt = message.publishedAt;
+    }
 }
 
 export class OutboxMessage {
@@ -30,23 +41,6 @@ export class OutboxMessage {
         private _nextAttemptAt?: Date,
         private _publishedAt?: Date
     ) {}
-
-    onLoad(): void {
-        const entity = this as {
-            attempts?: number;
-            nextAttemptAt?: Date;
-            publishedAt?: Date;
-        };
-        if (this._attempts === undefined && entity.attempts !== undefined) {
-            this._attempts = entity.attempts;
-        }
-        if (this._nextAttemptAt === undefined && entity.nextAttemptAt !== undefined) {
-            this._nextAttemptAt = entity.nextAttemptAt;
-        }
-        if (this._publishedAt === undefined && entity.publishedAt !== undefined) {
-            this._publishedAt = entity.publishedAt;
-        }
-    }
 
     static enqueue(event: IntegrationEvent<unknown>): OutboxMessage {
         const payloadRecord =
@@ -82,11 +76,9 @@ export class OutboxMessage {
     get attempts(): number {
         return this._attempts;
     }
-
     get nextAttemptAt(): Date | undefined {
         return this._nextAttemptAt;
     }
-
     get publishedAt(): Date | undefined {
         return this._publishedAt;
     }

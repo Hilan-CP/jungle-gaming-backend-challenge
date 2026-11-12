@@ -5,12 +5,20 @@ export interface ReceiveInboxProps {
     readonly receivedAt?: Date;
 }
 
-export interface InboxMessageState {
-    readonly messageId: string;
-    readonly consumerName: string;
-    readonly payloadHash: string;
-    readonly receivedAt: Date;
-    readonly processedAt?: Date;
+export class InboxMessageState {
+    public messageId: string;
+    public consumerName: string;
+    public payloadHash: string;
+    public receivedAt: Date;
+    public processedAt?: Date;
+
+    public constructor(message: InboxMessage) {
+        this.messageId = message.messageId;
+        this.consumerName = message.consumerName;
+        this.payloadHash = message.payloadHash;
+        this.receivedAt = message.receivedAt;
+        this.processedAt = message.processedAt;
+    }
 }
 
 export class InboxMessage {
@@ -21,13 +29,6 @@ export class InboxMessage {
         public readonly receivedAt: Date,
         private _processedAt?: Date
     ) {}
-
-    onLoad(): void {
-        const entity = this as { processedAt?: Date };
-        if (this._processedAt === undefined && entity.processedAt !== undefined) {
-            this._processedAt = entity.processedAt;
-        }
-    }
 
     static receive(props: ReceiveInboxProps): InboxMessage {
         return new InboxMessage(
