@@ -8,6 +8,7 @@ import { CreateWalletRequest, ReconciliationResponse, WalletResponse } from "../
 import { WalletRepository } from "../repository/wallet.repository";
 import { WalletLedgerRepository } from "../repository/wallet-ledger.repository";
 import { WagerTransactionRepository } from "../repository/wager-transaction.repository";
+import { computePayloadHash } from "../util/payload-hash.util";
 
 export { CreateWalletRequest, ReconciliationResponse, WalletResponse };
 
@@ -46,37 +47,46 @@ export class WalletService {
             initialBalance: initialMoney
         });
 
-        if (initialMoney.isPositive()) {
-            const openingTransactionId = randomUUID();
-            const openingTransaction = WagerTransaction.create({
-                id: openingTransactionId,
-                providerId: "system",
-                externalTransactionId: `opening-${wallet.id}`,
-                idempotencyKey: `system:opening-${wallet.id}`,
-                payloadHash: "opening",
-                walletId: wallet.id,
-                playerId: wallet.playerId,
-                roundId: "opening",
-                gameId: "opening",
-                kind: WagerTransactionKind.Opening,
-                money: initialMoney
-            });
-            openingTransaction.markProcessed(undefined, wallet.createdAt);
-            await this.wagerTransactionRepository.save(openingTransaction);
-
-            const openingEntry = WalletLedgerEntry.create({
-                id: randomUUID(),
-                walletId: wallet.id,
-                transactionId: openingTransactionId,
-                direction: LedgerDirection.Credit,
-                money: initialMoney,
-                balanceBefore: Money.zero(initialMoney.currency),
-                balanceAfter: initialMoney
-            });
-            await this.ledgerRepository.save(openingEntry);
-        }
-
         await this.walletRepository.save(wallet);
+
+        const openingTransactionId = randomUUID();
+        const payloadHash = computePayloadHash({
+            providerId: "system",
+            externalTransactionId: `opening-${wallet.id}`,
+            playerId: wallet.playerId,
+            walletId: wallet.id,
+            roundId: "opening",
+            gameId: "opening",
+            kind: WagerTransactionKind.Opening,
+            money: initialMoney.toJSON()
+        });
+        const openingTransaction = WagerTransaction.create({
+            id: openingTransactionId,
+            providerId: "system",
+            externalTransactionId: `opening-${wallet.id}`,
+            idempotencyKey: `system:opening-${wallet.id}`,
+            payloadHash,
+            walletId: wallet.id,
+            playerId: wallet.playerId,
+            roundId: "opening",
+            gameId: "opening",
+            kind: WagerTransactionKind.Opening,
+            money: initialMoney
+        });
+        openingTransaction.markProcessed(undefined, wallet.createdAt);
+        await this.wagerTransactionRepository.save(openingTransaction);
+
+        const openingEntry = WalletLedgerEntry.create({
+            id: randomUUID(),
+            walletId: wallet.id,
+            transactionId: openingTransactionId,
+            direction: LedgerDirection.Credit,
+            money: initialMoney,
+            balanceBefore: Money.zero(initialMoney.currency),
+            balanceAfter: initialMoney
+        });
+        await this.ledgerRepository.save(openingEntry);
+
         return serializeWallet(wallet);
     }
 

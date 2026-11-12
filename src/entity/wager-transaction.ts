@@ -152,25 +152,25 @@ export class WagerTransaction {
     }
 
     markProcessed(referenceTransactionId: string | undefined, at: Date): void {
-        this.assertNonTerminal("markProcessed");
+        this.assertNonTerminal(WagerTransactionStatus.Processed);
         this._referenceTransactionId = referenceTransactionId;
         this._processedAt = at;
         this._status = WagerTransactionStatus.Processed;
     }
 
     markPendingReference(): void {
-        this.assertNonTerminal("markPendingReference");
+        this.assertNonTerminal(WagerTransactionStatus.PendingReference);
         this._status = WagerTransactionStatus.PendingReference;
     }
 
     reject(code: FailureCode): void {
-        this.assertNonTerminal("reject");
+        this.assertNonTerminal(WagerTransactionStatus.Rejected);
         this._failureCode = code;
         this._status = WagerTransactionStatus.Rejected;
     }
 
     fail(code: FailureCode): void {
-        this.assertNonTerminal("fail");
+        this.assertNonTerminal(WagerTransactionStatus.Failed);
         this._failureCode = code;
         this._status = WagerTransactionStatus.Failed;
     }

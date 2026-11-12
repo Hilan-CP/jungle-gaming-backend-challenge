@@ -86,7 +86,6 @@ export class Wallet {
         });
 
         this._balance = balanceAfter;
-        this._version += 1;
         this._updatedAt = timestamp;
 
         return entry;
@@ -113,7 +112,6 @@ export class Wallet {
         });
 
         this._balance = balanceAfter;
-        this._version += 1;
         this._updatedAt = at;
 
         return entry;

@@ -1,5 +1,5 @@
 import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from "@nestjs/common";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { LedgerDirection, WalletLedgerEntry } from "../entity/ledger";
 import { Money } from "../entity/money";
 import { WagerTransaction, WagerTransactionKind } from "../entity/wager-transaction";
@@ -8,6 +8,7 @@ import { InsufficientFundsError } from "../error/insufficient-funds.error";
 import { WalletRepository } from "../repository/wallet.repository";
 import { WagerTransactionRepository } from "../repository/wager-transaction.repository";
 import { WalletLedgerRepository } from "../repository/wallet-ledger.repository";
+import { computePayloadHash } from "../util/payload-hash.util";
 
 export { CreateWagerTransactionRequest, WagerTransactionResponse };
 
@@ -31,22 +32,6 @@ function serializeTransaction(transaction: WagerTransaction): WagerTransactionRe
         createdAt: transaction.createdAt,
         processedAt: transaction.processedAt ?? null
     };
-}
-
-function computePayloadHash(dto: CreateWagerTransactionRequest): string {
-    const canonical = {
-        providerId: dto.providerId,
-        externalTransactionId: dto.externalTransactionId,
-        playerId: dto.playerId,
-        walletId: dto.walletId,
-        roundId: dto.roundId,
-        gameId: dto.gameId,
-        kind: dto.kind?.toUpperCase(),
-        amount: dto.money?.amount,
-        currency: dto.money?.currency,
-        referenceExternalTransactionId: dto.referenceExternalTransactionId ?? null
-    };
-    return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
 function parseTransactionKind(kind: string): WagerTransactionKind {
