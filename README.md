@@ -14,20 +14,25 @@ As decisões técnicas, padrões de projeto e motivações arquiteturais estão 
 
 ```text
 ├── src/
+│   ├── config/                   # Configurações de integração (ex.: AWS SQS)
 │   ├── controller/               # Controladores HTTP (REST API / Swagger)
 │   ├── dto/                      # Data Transfer Objects com validações class-validator e OpenAPI
-│   ├── entity/                   # Entidades de domínio e Value Objects (Wallet, Money, Ledger, etc.)
-│   │   └── database-schema/      # Mapeamentos e esquemas de persistência do MikroORM
+│   ├── entity/                   # Agregados de domínio e estados de persistência (Wallet, Money, Ledger, etc.)
+│   │   └── database-schema/      # Schemas tipados de persistência do MikroORM (EntitySchema<State>)
 │   ├── error/                    # Erros customizados e exceções de domínio
+│   ├── infra/                    # Integrações com serviços externos
+│   │   └── sqs/                  # Cliente e publicador de mensagens SQS
 │   ├── migrations/               # Migrações versionadas do banco de dados (MikroORM)
 │   ├── repository/               # Camada de repositórios e acesso a dados
 │   ├── service/                  # Casos de uso e serviços de aplicação (WageringService, WalletService)
 │   ├── util/                     # Utilitários compartilhados (como hash canônico de payloads)
+│   ├── worker/                   # Workers de publicação da outbox e consumo da SQS
 │   ├── app.module.ts             # Módulo raiz do NestJS e injeção de dependências
 │   ├── main.ts                   # Ponto de entrada da aplicação HTTP e configuração do Swagger
 │   └── mikro-orm.config.ts       # Configurações de conexão e banco de dados do MikroORM
 ├── test/                         # Testes e2e e configurações do Jest
 ├── docker-compose.yaml           # Serviços de infraestrutura local (PostgreSQL, LocalStack, pgAdmin)
+├── sqs-scripts.sh                # Scripts auxiliares para criar/inspecionar filas no LocalStack
 └── package.json                  # Scripts e dependências do projeto
 ```
 
