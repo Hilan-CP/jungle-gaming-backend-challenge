@@ -5,6 +5,14 @@ export class Migration20261111010927 extends Migration {
 
     override up(): void | Promise<void> {
         this.addSql(
+            `create type "wager_transaction_kind" as enum ('OPENING', 'BET', 'WIN', 'LOSS', 'REFUND', 'ROLLBACK');`
+        );
+        this.addSql(
+            `create type "wager_transaction_status" as enum ('PENDING', 'PENDING_REFERENCE', 'PROCESSED', 'REJECTED', 'FAILED');`
+        );
+        this.addSql(`create type "ledger_direction" as enum ('DEBIT', 'CREDIT');`);
+
+        this.addSql(
             `create table "wager_transactions" ("id" varchar(255) not null, "provider_id" varchar(255) not null, "external_transaction_id" varchar(255) not null, "idempotency_key" varchar(255) not null, "payload_hash" varchar(255) not null, "wallet_id" varchar(255) not null, "player_id" varchar(255) not null, "round_id" varchar(255) not null, "game_id" varchar(255) not null, "kind" "wager_transaction_kind" not null, "amount" varchar(255) not null, "currency" varchar(255) not null, "reference_external_transaction_id" varchar(255) null, "created_at" timestamptz not null, "status" "wager_transaction_status" not null, "reference_transaction_id" varchar(255) null, "failure_code" varchar(255) null, "processed_at" timestamptz null, primary key ("id"));`
         );
         this.addSql(`create index "wager_transactions_wallet_id_index" on "wager_transactions" ("wallet_id");`);

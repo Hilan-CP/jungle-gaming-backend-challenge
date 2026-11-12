@@ -55,3 +55,8 @@ export function computePayloadHash(payload: WagerPayloadInput): string {
     const canonicalJson = canonicalJsonStringify(canonicalPayload);
     return createHash("sha256").update(canonicalJson).digest("hex");
 }
+
+export function computeRawPayloadHash(value: unknown): string {
+    const canonicalJson = canonicalJsonStringify(value);
+    return createHash("sha256").update(canonicalJson).digest("hex");
+}

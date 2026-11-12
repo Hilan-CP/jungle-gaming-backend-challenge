@@ -8,6 +8,8 @@ import { InsufficientFundsError } from "../error/insufficient-funds.error";
 import { WalletRepository } from "../repository/wallet.repository";
 import { WagerTransactionRepository } from "../repository/wager-transaction.repository";
 import { WalletLedgerRepository } from "../repository/wallet-ledger.repository";
+import { OutboxRepository } from "../repository/outbox.repository";
+import { OutboxMessage } from "../entity/outbox";
 import { computePayloadHash } from "../util/payload-hash.util";
 
 export { CreateWagerTransactionRequest, WagerTransactionResponse };
@@ -56,7 +58,8 @@ export class WageringService {
     constructor(
         private readonly walletRepository: WalletRepository,
         private readonly wagerTransactionRepository: WagerTransactionRepository,
-        private readonly ledgerRepository: WalletLedgerRepository
+        private readonly ledgerRepository: WalletLedgerRepository,
+        private readonly outboxRepository: OutboxRepository
     ) {}
 
     async processTransaction(
@@ -178,6 +181,13 @@ export class WageringService {
                 if (err instanceof InsufficientFundsError) {
                     transaction.reject("INSUFFICIENT_FUNDS");
                     await this.wagerTransactionRepository.save(transaction);
+                    const rejectedOutbox = OutboxMessage.enqueue({
+                        aggregateId: transaction.walletId,
+                        eventType: "wager.rejected",
+                        payload: serializeTransaction(transaction),
+                        occurredAt: now
+                    });
+                    await this.outboxRepository.save(rejectedOutbox);
                     throw new HttpException(
                         {
                             statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -201,6 +211,13 @@ export class WageringService {
         }
 
         await this.wagerTransactionRepository.save(transaction);
+        const processedOutbox = OutboxMessage.enqueue({
+            aggregateId: transaction.walletId,
+            eventType: "wager.processed",
+            payload: serializeTransaction(transaction),
+            occurredAt: now
+        });
+        await this.outboxRepository.save(processedOutbox);
         return serializeTransaction(transaction);
     }
 

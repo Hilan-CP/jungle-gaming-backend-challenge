@@ -4,10 +4,12 @@ import { Wallet } from "../entity/wallet";
 import { LedgerDirection, WalletLedgerEntry } from "../entity/ledger";
 import { Money } from "../entity/money";
 import { WagerTransaction, WagerTransactionKind } from "../entity/wager-transaction";
+import { OutboxMessage } from "../entity/outbox";
 import { CreateWalletRequest, ReconciliationResponse, WalletResponse } from "../dto/wallet.dto";
 import { WalletRepository } from "../repository/wallet.repository";
 import { WalletLedgerRepository } from "../repository/wallet-ledger.repository";
 import { WagerTransactionRepository } from "../repository/wager-transaction.repository";
+import { OutboxRepository } from "../repository/outbox.repository";
 import { computePayloadHash } from "../util/payload-hash.util";
 
 export { CreateWalletRequest, ReconciliationResponse, WalletResponse };
@@ -29,7 +31,8 @@ export class WalletService {
     constructor(
         private readonly walletRepository: WalletRepository,
         private readonly ledgerRepository: WalletLedgerRepository,
-        private readonly wagerTransactionRepository: WagerTransactionRepository
+        private readonly wagerTransactionRepository: WagerTransactionRepository,
+        private readonly outboxRepository: OutboxRepository
     ) {}
 
     async createWallet(request: CreateWalletRequest): Promise<WalletResponse> {
@@ -86,6 +89,19 @@ export class WalletService {
             balanceAfter: initialMoney
         });
         await this.ledgerRepository.save(openingEntry);
+
+        const walletCreatedOutbox = OutboxMessage.enqueue({
+            aggregateId: wallet.id,
+            eventType: "wallet.created",
+            payload: {
+                walletId: wallet.id,
+                playerId: wallet.playerId,
+                currency: wallet.currency,
+                initialBalance: initialMoney.toJSON()
+            },
+            occurredAt: wallet.createdAt
+        });
+        await this.outboxRepository.save(walletCreatedOutbox);
 
         return serializeWallet(wallet);
     }
