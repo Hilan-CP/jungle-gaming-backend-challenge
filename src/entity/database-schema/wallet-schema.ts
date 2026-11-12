@@ -1,4 +1,4 @@
-import { EntitySchema, Type, type Platform } from "@mikro-orm/core";
+import { EntitySchema, EventType, Type, type Platform } from "@mikro-orm/core";
 import { Money } from "../money";
 import { Wallet } from "../wallet";
 
@@ -21,6 +21,9 @@ export class BalanceColumnType extends Type<Money, any> {
 export const WalletSchema = new EntitySchema<any>({
     class: Wallet as any,
     tableName: "wallets",
+    hooks: {
+        [EventType.onLoad]: ["onLoad"]
+    },
     properties: {
         id: { type: "string", primary: true, defaultRaw: "gen_random_uuid()" },
         playerId: { fieldName: "player_id", type: "string" },

@@ -15,6 +15,9 @@ interface WalletState {
 }
 
 export class Wallet {
+    private balanceAmount?: string;
+    private balanceCurrency?: string;
+
     private constructor(
         public readonly id: string,
         public readonly playerId: string,
@@ -24,6 +27,12 @@ export class Wallet {
         public readonly createdAt: Date,
         private _updatedAt: Date
     ) {}
+
+    onLoad(): void {
+        if (this.balanceAmount !== undefined && this.balanceCurrency !== undefined) {
+            this._balance = Money.from({ amount: this.balanceAmount, currency: this.balanceCurrency });
+        }
+    }
 
     static open(props: { id: string; playerId: string; initialBalance: Money }): Wallet {
         const now = new Date();
