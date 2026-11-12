@@ -1,14 +1,15 @@
 import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { LedgerDirection, WalletLedgerEntry } from "../entity/ledger";
+import { LedgerDirection, LedgerEntryState, WalletLedgerEntry } from "../entity/ledger";
 import { Money } from "../entity/money";
-import { WagerTransaction, WagerTransactionKind } from "../entity/wager-transaction";
+import { WagerTransaction, WagerTransactionKind, WagerTransactionState } from "../entity/wager-transaction";
 import { CreateWagerTransactionRequest, WagerTransactionResponse } from "../dto/wagering.dto";
 import { InsufficientFundsError } from "../error/insufficient-funds.error";
 import { WalletRepository } from "../repository/wallet.repository";
 import { WagerTransactionRepository } from "../repository/wager-transaction.repository";
 import { WalletLedgerRepository } from "../repository/wallet-ledger.repository";
 import { computePayloadHash } from "../util/payload-hash.util";
+import { WalletState } from "../entity/wallet";
 
 export { CreateWagerTransactionRequest, WagerTransactionResponse };
 
@@ -177,7 +178,7 @@ export class WageringService {
             } catch (err: any) {
                 if (err instanceof InsufficientFundsError) {
                     transaction.reject("INSUFFICIENT_FUNDS");
-                    await this.wagerTransactionRepository.save(transaction);
+                    await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
                     throw new HttpException(
                         {
                             statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -189,18 +190,18 @@ export class WageringService {
                     );
                 }
                 transaction.fail("INTERNAL_ERROR");
-                await this.wagerTransactionRepository.save(transaction);
+                await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
                 throw err;
             }
 
             transaction.markProcessed(referenceTransaction?.id, now);
-            await this.ledgerRepository.save(entry);
-            await this.walletRepository.save(wallet);
+            await this.ledgerRepository.save(new LedgerEntryState(entry));
+            await this.walletRepository.update(new WalletState(wallet));
         } else {
             transaction.markProcessed(referenceTransaction?.id, now);
         }
 
-        await this.wagerTransactionRepository.save(transaction);
+        await this.wagerTransactionRepository.save(new WagerTransactionState(transaction));
         return serializeTransaction(transaction);
     }
 

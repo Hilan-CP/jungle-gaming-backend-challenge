@@ -2,22 +2,29 @@ import { CurrencyMismatchError } from "../error/currency-mismatch.error";
 import { InsufficientFundsError } from "../error/insufficient-funds.error";
 import { InvalidMoneyAmountError } from "../error/invalid-money-amount.error";
 import { LedgerDirection, WalletLedgerEntry } from "./ledger";
-import { Money, type MoneyProps } from "./money";
+import { Money } from "./money";
 
-interface WalletState {
-    id: string;
-    playerId: string;
-    currency: string;
-    balance: MoneyProps;
-    version: number;
-    createdAt: Date;
-    updatedAt: Date;
+export class WalletState {
+    public id: string;
+    public playerId: string;
+    public currency: string;
+    public amount: string;
+    public version: number;
+    public createdAt: Date;
+    public updatedAt: Date;
+
+    public constructor(wallet: Wallet) {
+        this.id = wallet.id;
+        this.playerId = wallet.playerId;
+        this.currency = wallet.currency;
+        this.amount = wallet.balance.toJSON().amount;
+        this.version = wallet.version;
+        this.createdAt = wallet.createdAt;
+        this.updatedAt = wallet.updatedAt;
+    }
 }
 
 export class Wallet {
-    private balanceAmount?: string;
-    private balanceCurrency?: string;
-
     private constructor(
         public readonly id: string,
         public readonly playerId: string,
@@ -27,12 +34,6 @@ export class Wallet {
         public readonly createdAt: Date,
         private _updatedAt: Date
     ) {}
-
-    onLoad(): void {
-        if (this.balanceAmount !== undefined && this.balanceCurrency !== undefined) {
-            this._balance = Money.from({ amount: this.balanceAmount, currency: this.balanceCurrency });
-        }
-    }
 
     static open(props: { id: string; playerId: string; initialBalance: Money }): Wallet {
         const now = new Date();
@@ -44,7 +45,7 @@ export class Wallet {
             state.id,
             state.playerId,
             state.currency,
-            Money.from(state.balance),
+            Money.from({ amount: state.amount, currency: state.currency }),
             state.version,
             state.createdAt,
             state.updatedAt

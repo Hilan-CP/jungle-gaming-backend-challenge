@@ -1,22 +1,8 @@
-import { EntitySchema, Type, type Platform } from "@mikro-orm/core";
-import { Money } from "../money";
-import { WagerTransaction, WagerTransactionKind, WagerTransactionStatus } from "../wager-transaction";
+import { EntitySchema } from "@mikro-orm/core";
+import { WagerTransactionKind, WagerTransactionState, WagerTransactionStatus } from "../wager-transaction";
 
-export class TransactionMoneyCustomType extends Type<Money, any> {
-    override convertToDatabaseValue(money: Money, platform?: Platform): any {
-        return money?.toJSON ? money.toJSON().amount : money;
-    }
-
-    override convertToJSValue(value: any, platform?: Platform, entity?: any): Money {
-        return Money.from({
-            amount: value?.amount ?? value,
-            currency: entity?.currency ?? value?.currency
-        });
-    }
-}
-
-export const WagerTransactionSchema = new EntitySchema<any>({
-    class: WagerTransaction as any,
+export const WagerTransactionSchema = new EntitySchema<WagerTransactionState>({
+    class: WagerTransactionState,
     tableName: "wager_transactions",
     properties: {
         id: { type: "string", primary: true, defaultRaw: "gen_random_uuid()" },
@@ -33,17 +19,8 @@ export const WagerTransactionSchema = new EntitySchema<any>({
             items: () => WagerTransactionKind,
             nativeEnumName: "wager_transaction_kind"
         },
-
-        money: {
-            name: "money",
-            type: TransactionMoneyCustomType,
-            persist: false,
-            getter: true,
-            serializer: (transaction: WagerTransaction) => transaction.money.toJSON()
-        },
-        amount: { fieldName: "amount", type: "string", persist: true },
-        currency: { fieldName: "currency", type: "string", persist: true },
-
+        amount: { fieldName: "amount", type: "string" },
+        currency: { fieldName: "currency", type: "string" },
         referenceExternalTransactionId: {
             fieldName: "reference_external_transaction_id",
             type: "string",
